@@ -1,0 +1,57 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+unless Vagrant.has_plugin?("vagrant-vbguest")
+  exec "vagrant plugin install vagrant-vbguest"
+end
+
+unless Vagrant.has_plugin?("vagrant-hostmanager")
+  exec "vagrant plugin install vagrant-hostmanager"
+end
+
+VAGRANTFILE_API_VERSION = "2"
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|  # Every Vagrant virtual environment requires a box to build off of.
+  
+  config.vm.box = "ubuntu/focal64"
+  
+  config.vm.define "docker-ubuntu-gitlab"
+  
+  config.vm.hostname = "dockerized-ubuntu-gitlab-vm"
+  
+  config.vm.network "private_network", type: "dhcp"  # If true, then any SSH connections made will enable agent forwarding.
+  
+  config.vm.network :forwarded_port, guest: 22, host: 22
+  config.vm.network :forwarded_port, guest: 80, host: 80
+  config.vm.network :forwarded_port, guest: 443, host: 443
+
+  config.vm.provider "virtualbox" do |vb|
+  
+    # Boot with headless mode
+    vb.gui = false    # Tweak the below value to adjust RAM
+    vb.memory = 8192
+  
+    # Tweak the number of processors below
+    vb.cpus = 4
+ 
+    # Use VBoxManage to customize the VM. For example to change memory:
+    config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
+    config.vm.synced_folder "../data", "/data", type: "virtualbox"
+    
+    # Configure hostfile for domains
+    config.hostmanager.ip_resolver = proc do |vm, resolving_vm|
+      if vm.id
+        `"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" guestproperty get #{vm.id} "/VirtualBox/GuestInfo/Net/1/V4/IP"`.split()[1]
+      end
+    end
+
+    config.hostmanager.enabled = true
+    config.hostmanager.manage_host = true
+    config.hostmanager.ignore_private_ip = false
+    config.hostmanager.include_offline = true
+    config.hostmanager.aliases = ["dockerized-ubuntu-gitlab-vm.local"]
+   
+  end
+  config.vm.provision :shell, :path => "setup.sh"
+  config.vm.provision :shell, :path => "post_docker.sh"
+  config.vm.provision :shell, :path => "docker_compose_up.sh"
+
+end
